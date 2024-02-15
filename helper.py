@@ -107,7 +107,7 @@ def api_call_fields_table(user_info, url, access_key_id):
     
 
 #############################
-# API CALL FIELDS TABLE 
+# API CALL FIELDS 
 #############################
 
 import requests
