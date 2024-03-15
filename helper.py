@@ -76,14 +76,15 @@ def api_call_logo(user_info, url, access_key_id, default_logo='assets/GeoAgro_pr
 import requests
 import pandas as pd
 
-def api_call_fields_table(user_info, url, access_key_id):
+def api_call_fields_table(user_info, access_key_id, url):
+    # url = 'https://lpul7iylefbdlepxbtbovin4zy.appsync-api.us-west-2.amazonaws.com/graphql'
     headers = {
         'x-api-key': access_key_id,
         'Content-Type': 'application/json'
     }
     query = f'''
     query MyQuery {{
-      get_field_table(seasonId: {user_info['seasonId']}, farmId: {user_info['farmId']}, email: "{user_info['email']}", exportAllAsCsv: true, lang: "{user_info['language']}", withHectares: true, withCentroid: true, withGeom: true, delimiter: ";") {{
+      get_field_table(domainId: {user_info['domainId']}, email: "{user_info['email']}", exportAllAsCsv: true, lang: "{user_info['language']}", withHectares: true, withCentroid: true, withGeom: true, delimiter: ";") {{
         csvUrl
       }}
     }}
@@ -104,8 +105,141 @@ def api_call_fields_table(user_info, url, access_key_id):
         df = df[df['hectares'] != 0]
 
         return data, df
-    
 
+#############################
+# DECRYPT 
+#############################
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+import json
+from secretManager import AWSSecret
+
+def get_private_key() -> str:
+    secret = json.loads(AWSSecret().get_secret(secret_name="prod/crypt/rsa", region_name="us-west-2"))
+    raw_private_key = secret['api_private_rsa_4096']
+    pem_private_key = "-----BEGIN RSA PRIVATE KEY-----\n{0}\n-----END RSA PRIVATE KEY-----".format(raw_private_key)
+    return pem_private_key
+
+def decrypt_token(token_string: str) -> dict:
+    pem_private_key = get_private_key()
+
+    private_key = serialization.load_pem_private_key(
+        pem_private_key.encode(),
+        password=None,
+        backend=default_backend()
+    )
+    decrypted = private_key.decrypt(
+        base64.urlsafe_b64decode(token_string + '=' * (4-len(token_string)%4)),
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    
+    return json.loads(str(decrypted, 'utf-8'))
+
+#############################
+# API CALL DOMAIN BY USER 
+#############################
+
+import requests
+
+def domains_areas_by_user(user_email, access_key_id, url):
+    headers = {
+        'x-api-key': access_key_id,
+        'Content-Type': 'application/json'
+    }
+    query = f'''
+    query MyQuery {{
+      domains_areas_by_user(email: "{user_email}") {{
+        id
+        name
+        deleted
+        areas {{
+            id
+            name
+            deleted
+            workspaces {{
+                id
+                name
+                deleted
+            }}
+        }}
+        workspaces{{
+            id
+            name
+            deleted
+        }}
+      }}
+    }}
+    '''
+    response = requests.post(url, json={'query': query}, headers=headers)
+    if response.status_code != 200:
+        return None
+    else:
+        data = response.json()
+        return data['data']['domains_areas_by_user']
+    
+#############################
+# API CALL SEASONS 
+#############################
+
+import requests
+
+def seasons(workspaceId, access_key_id, url):
+    headers = {
+        'x-api-key': access_key_id,
+        'Content-Type': 'application/json'
+    }
+
+    query = f'''
+    query MyQuery {{
+        list_seasons(workspaceId: {workspaceId}) {{
+            id
+            name
+            deleted
+        }}
+    }}
+    '''
+    response = requests.post(url, json={'query': query}, headers=headers)
+    if response.status_code != 200:
+        return None
+    else:
+        data = response.json()
+        return data['data']['list_seasons']
+    
+#############################
+# API CALL FARMS 
+#############################
+
+import requests
+
+def farms(workspaceId, seasonId, access_key_id, url):
+    headers = {
+        'x-api-key': access_key_id,
+        'Content-Type': 'application/json'
+    }
+
+    query = f'''
+    query MyQuery {{
+        list_farms(workspaceId: {workspaceId}, seasonId: {seasonId}) {{
+            id
+            name
+            deleted
+        }}
+    }}
+    '''
+    response = requests.post(url, json={'query': query}, headers=headers)
+    if response.status_code != 200:
+        return None
+    else:
+        data = response.json()
+        return data['data']['list_farms']
+    
 #############################
 # API CALL FIELDS 
 #############################
@@ -113,7 +247,7 @@ def api_call_fields_table(user_info, url, access_key_id):
 import requests
 import pandas as pd
 
-def api_call_fields(user_info, url, access_key_id):
+def api_call_fields(seasonId, farmId, lang, url, access_key_id):
     headers = {
         'x-api-key': access_key_id,
         'Content-Type': 'application/json'
@@ -134,9 +268,9 @@ def api_call_fields(user_info, url, access_key_id):
     }
     """
     variables = {
-        'farmId': user_info['farmId'],
-        'lang': user_info['language'],
-        'seasonId': user_info['seasonId']
+        'farmId': farmId,
+        'lang': lang,
+        'seasonId': seasonId
     }
 
     response = requests.post(url, headers=headers, json={'query': query, 'variables': variables})
