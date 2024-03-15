@@ -378,6 +378,18 @@ if hay_algun_establecimiento_seleccionado == True:
         colormap=color_mapper,  # Use the RdYlGn color mapper function
     ).add_to(m)
 
+    from branca.colormap import LinearColormap
+
+    # Define la paleta de colores manualmente (puedes ajustar estos colores según tu preferencia)
+    terrain_colors = ['#333399', '#0e7ee4', '#00bc94', '#55dd77', '#c5f38d', '#e4dc8a', '#aa926b', '#8d6d66', '#c5b5b1', '#ffffff']
+
+    # Calcular valores mínimos y máximos para la barra de colores
+    vmin, vmax = np.nanmin(img), np.nanmax(img)
+
+    # Definir y agregar la barra de colores al mapa usando la lista de colores definida
+    colorbar = LinearColormap(colors=terrain_colors, vmin=vmin, vmax=vmax)
+    m.add_child(colorbar)
+
     # Agrega la capa de teselas de Esri World Imagery y el control de capas
     tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
     attr = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
