@@ -343,7 +343,7 @@ if hay_algun_establecimiento_seleccionado == True:
     capa_de_lotes.add_to(m)
 
     # Load the DEM raster file
-    infile = "raster_test/dem_completo.tif"
+    infile = "final_raster.tif"
 
     with rio.open(infile) as src:
         boundary = src.bounds
